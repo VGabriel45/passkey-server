@@ -11,7 +11,7 @@ import type {
 import { jwtVerify, SignJWT } from "jose"
 import { Hono } from "hono"
 import { serveStatic } from "hono/bun"
-import { getSignedCookie, setCookie, setSignedCookie } from "hono/cookie"
+import { getSignedCookie, setSignedCookie } from "hono/cookie"
 import { logger } from "hono/logger"
 import { cors } from "hono/cors"
 import { v4 as uuidv4 } from "uuid"
@@ -127,7 +127,8 @@ app.post("/api/v3/:projectId/register/options", async (c) => {
     let domainName = await domainNameCache.get(projectId)
     if (!domainName) {
         console.log("cache miss")
-        domainName = await passkeyRepo.getPasskeyDomainByProjectId(projectId)
+        // domainName = await passkeyRepo.getPasskeyDomainByProjectId(projectId)
+        domainName = "localhost"
         console.log("got domain name", domainName)
         await domainNameCache.set(projectId, domainName)
     }
@@ -268,10 +269,12 @@ app.post("/api/v3/:projectId/register/verify", async (c) => {
         requireUserVerification: true
     })
 
+    console.log("verification", verification)
     if (verification.verified) {
         const { credentialID, credentialPublicKey, counter } =
             verification.registrationInfo!
 
+        console.log("Before delete")
         await passkeyRepo.delete(["challenges", clientData.challenge])
 
         await passkeyRepo.createUser({
@@ -280,6 +283,7 @@ app.post("/api/v3/:projectId/register/verify", async (c) => {
             projectId: c.req.param("projectId")
         })
 
+        console.log("Before createCredential")
         await passkeyRepo.createCredential({
             userId,
             credentialId: uint8ArrayToBase64Url(credentialID),
@@ -749,7 +753,9 @@ registerV4Routes(app, passkeyRepo, CHALLENGE_TTL)
 // health check
 app.get("/health", (c) => c.json({ status: "ok" }))
 
-Bun.serve({
+const server = Bun.serve({
     port: 8080, // defaults to $BUN_PORT, $PORT, $NODE_PORT otherwise 3000
     fetch: app.fetch
 })
+
+console.log(`Server running at http://localhost:${server.port}`)

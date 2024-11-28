@@ -19,6 +19,7 @@ export function registerV4Routes(
     passkeyRepo: PasskeyRepository,
     CHALLENGE_TTL: number
 ) {
+    console.log(passkeyRepo, "passkeyRepo");
     const getDomainName = async (c: Context) => {
         let rpID: string | undefined;
         if (c.req.raw.body) {
@@ -69,6 +70,7 @@ export function registerV4Routes(
             username: string
             cred: RegistrationResponseJSON
         }>()
+        console.log('Breakpoint 1')
 
         // base64url to Uint8Array
         const pubKey = cred.response.publicKey!
@@ -76,19 +78,24 @@ export function registerV4Routes(
         if (!userId) return new Response("UserId Not Found", { status: 401 })
 
         const domainName = await getDomainName(c)
+        console.log('Breakpoint 2')
         if (!domainName) return c.text("Origin header is missing", 400)
 
+        console.log('Breakpoint 3')
         const clientData = JSON.parse(atob(cred.response.clientDataJSON))
+        console.log('Breakpoint 3.1')
         const challenge = await passkeyRepo.get([
             "challenges",
             domainName,
             clientData.challenge
         ])
 
+        console.log('Breakpoint 4')
         if (!challenge) {
             return c.text("Invalid challenge", 400)
         }
 
+        console.log('Before verifyRegistrationResponse')
         const verification = await verifyRegistrationResponse({
             response: cred,
             expectedChallenge: clientData.challenge,
@@ -97,18 +104,22 @@ export function registerV4Routes(
             requireUserVerification: true
         })
 
+        console.log('After verifyRegistrationResponse')
         if (verification.verified) {
             const { credentialID, credentialPublicKey, counter } =
                 verification.registrationInfo!
 
+            console.log('Before delete')
             await passkeyRepo.delete(["challenges", clientData.challenge])
 
+            console.log('Before createUser')
             await passkeyRepo.createUser({
                 userId,
                 username,
                 projectId: null
             })
 
+            console.log('Before createCredential')
             await passkeyRepo.createCredential({
                 credentialId: uint8ArrayToBase64Url(credentialID),
                 userId,
